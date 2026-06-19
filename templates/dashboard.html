@@ -1,0 +1,1518 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Livin Tracker — Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script>
+    tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter','sans-serif'] } } } }
+  </script>
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+
+    .card {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04);
+    }
+
+    .kpi-card {
+      border-radius: 16px;
+      padding: 20px 24px;
+      position: relative;
+      overflow: hidden;
+      background: white;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+      transition: box-shadow 0.2s, transform 0.2s;
+    }
+    .kpi-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); transform: translateY(-1px); }
+
+    .filter-select {
+      appearance: none;
+      padding: 7px 32px 7px 12px;
+      font-size: 13px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      background: white;
+      color: #475569;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: 'Inter', sans-serif;
+      font-weight: 500;
+    }
+    .filter-select:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.12); }
+    .filter-select.active {
+      border-color: #3b82f6;
+      background: #eff6ff;
+      color: #1d4ed8;
+      font-weight: 600;
+    }
+
+    .badge {
+      display: inline-flex; align-items: center;
+      padding: 3px 10px; border-radius: 999px;
+      font-size: 11.5px; font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: #3b82f6; color: white;
+      padding: 4px 10px; border-radius: 999px;
+      font-size: 12px; font-weight: 500;
+    }
+    .chip-clear { opacity: 0.7; cursor: pointer; font-size: 11px; transition: opacity 0.15s; }
+    .chip-clear:hover { opacity: 1; }
+
+    .tr-row { transition: background 0.1s; cursor: default; }
+    .tr-row:hover { background: #f8fafc; }
+
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid #e2e8f0; border-top-color: #3b82f6;
+      border-radius: 50%; animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: #f8fafc; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+    .page-btn-active { background: #3b82f6 !important; color: white !important; border-color: #3b82f6 !important; }
+
+    .nav-link {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 12px; border-radius: 8px;
+      font-size: 13px; font-weight: 500; color: #64748b;
+      text-decoration: none; transition: color 0.15s, background 0.15s;
+      white-space: nowrap;
+    }
+    .nav-link:hover { color: #1e293b; background: #f1f5f9; }
+    .nav-link.active { color: #2563eb; background: #eff6ff; font-weight: 600; }
+
+    .hdr-btn {
+      display: flex; align-items: center; justify-content: center;
+      width: 32px; height: 32px; border-radius: 8px;
+      color: #94a3b8; border: 1.5px solid #e2e8f0; background: white;
+      cursor: pointer; transition: color 0.15s, background 0.15s, border-color 0.15s;
+    }
+    .hdr-btn:hover { color: #475569; background: #f8fafc; border-color: #cbd5e1; }
+    #toggle-amounts.is-hidden { color: #3b82f6; background: #eff6ff; border-color: #bfdbfe; }
+
+    .progress-bar {
+      height: 6px; border-radius: 4px; background: #f1f5f9; overflow: hidden;
+    }
+    .progress-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+
+    .section-title { font-size: 14px; font-weight: 600; color: #1e293b; }
+    .section-sub  { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+
+    @media (max-width: 768px) {
+      .hide-mobile { display: none; }
+    }
+
+    /* ── AMOUNT HIDE / SHOW ── */
+    .amount {
+      display: inline-block;
+      border-radius: 6px;
+      transition: filter 0.35s cubic-bezier(0.4,0,0.2,1),
+                  transform 0.35s cubic-bezier(0.4,0,0.2,1);
+    }
+    body.amounts-hidden .amount {
+      filter: blur(10px);
+      transform: scale(0.96);
+      user-select: none;
+      pointer-events: none;
+    }
+    /* table price columns */
+    body.amounts-hidden .col-amount {
+      filter: blur(10px);
+      transform: scale(0.96);
+      user-select: none;
+      pointer-events: none;
+      transition: filter 0.35s cubic-bezier(0.4,0,0.2,1),
+                  transform 0.35s cubic-bezier(0.4,0,0.2,1);
+    }
+
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+  <!-- ── HEADER ── -->
+  <header class="bg-white border-b border-slate-100 sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-5">
+      <div class="flex items-center h-14 gap-4">
+
+        <!-- Brand -->
+        <div class="flex items-center gap-2.5 flex-shrink-0">
+          <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
+            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+              <rect x="2" y="5" width="20" height="14" rx="2"/>
+              <line x1="2" y1="10" x2="22" y2="10"/>
+              <line x1="6" y1="15" x2="10" y2="15"/>
+            </svg>
+          </div>
+          <span class="text-sm font-bold text-slate-800 tracking-tight">Livin Tracker</span>
+        </div>
+
+        <div class="h-5 w-px bg-slate-200 flex-shrink-0"></div>
+
+        <!-- Nav -->
+        <nav class="flex items-center gap-0.5">
+          <a href="/" class="nav-link active">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+              <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+              <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+            </svg>
+            Dashboard
+          </a>
+          <a href="/pembayaran" class="nav-link">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+              <rect x="3" y="4" width="18" height="18" rx="2"/>
+              <line x1="3" y1="9" x2="21" y2="9"/>
+              <line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/>
+              <line x1="8" y1="14" x2="16" y2="14"/>
+            </svg>
+            Pembayaran
+          </a>
+          <a href="/rekening-koran" class="nav-link">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+              <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            Rekening Koran
+          </a>
+        </nav>
+
+        <div class="flex-1 min-w-0"></div>
+
+        <!-- Right actions -->
+        <div class="flex items-center gap-1.5">
+          <div id="loading" class="spinner hidden"></div>
+          <span id="last-update" class="text-xs text-slate-400 hide-mobile mr-1">—</span>
+
+          <!-- Eye toggle -->
+          <button id="toggle-amounts" onclick="toggleAmounts()" title="Sembunyikan nominal" class="hdr-btn">
+            <svg class="icon-eye w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+            </svg>
+            <svg class="icon-eye-off w-4 h-4 hidden" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+              <line x1="1" y1="1" x2="23" y2="23"/>
+            </svg>
+          </button>
+
+          <!-- Sync dropdown -->
+          <div class="relative" id="sync-wrap">
+            <button id="sync-btn" onclick="toggleSyncMenu()"
+              class="flex items-center gap-1.5 h-8 px-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs font-semibold">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+              </svg>
+              Sync
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+
+          <!-- Dropdown menu -->
+          <div id="sync-menu"
+            class="hidden absolute right-0 top-full mt-2 w-64 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden z-50">
+
+            <button onclick="doSync('pengeluaran')"
+              class="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors text-left">
+              <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                  <rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>
+                </svg>
+              </div>
+              <div>
+                <div class="text-sm font-semibold text-slate-800">Sync Pengeluaran</div>
+                <div class="text-xs text-slate-400">Semua transaksi Livin by Mandiri</div>
+              </div>
+            </button>
+
+            <button onclick="doSync('pemasukan')"
+              class="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors text-left">
+              <div class="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                  <line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>
+                </svg>
+              </div>
+              <div>
+                <div class="text-sm font-semibold text-slate-800">Sync Pemasukan</div>
+                <div class="text-xs text-slate-400">Semua gaji masuk MCM</div>
+              </div>
+            </button>
+
+            <div class="border-t border-slate-100 mx-3"></div>
+
+            <button onclick="doSync('harian')"
+              class="w-full flex items-center gap-3 px-4 py-3 hover:bg-amber-50 transition-colors text-left">
+              <div class="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                  <rect x="3" y="4" width="18" height="18" rx="2"/>
+                  <line x1="3" y1="9" x2="21" y2="9"/>
+                  <line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/>
+                  <circle cx="12" cy="15" r="1.5" fill="currentColor"/>
+                </svg>
+              </div>
+              <div>
+                <div class="text-sm font-semibold text-slate-800">Sync Hari Ini</div>
+                <div class="text-xs text-slate-400 today-date">Pengeluaran + pemasukan hari ini</div>
+              </div>
+            </button>
+
+            <div class="border-t border-slate-100 mx-3"></div>
+
+            <button onclick="doSync('rekening_koran')"
+              class="w-full flex items-center gap-3 px-4 py-3 hover:bg-emerald-50 transition-colors text-left">
+              <div class="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                  <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+              </div>
+              <div>
+                <div class="text-sm font-semibold text-slate-800">Sync Rekening Koran</div>
+                <div class="text-xs text-slate-400">ConsolidatedStatement PDF</div>
+              </div>
+            </button>
+
+          </div>
+          </div><!-- /sync-wrap -->
+
+        </div><!-- /right actions -->
+      </div><!-- /flex row -->
+    </div><!-- /max-w -->
+  </header>
+
+  <div class="max-w-7xl mx-auto px-5 py-5">
+
+    <!-- ── FILTER BAR ── -->
+    <div class="card p-4 mb-5">
+      <div class="flex flex-wrap items-center gap-2.5">
+        <span class="flex items-center gap-1.5 text-xs font-semibold text-slate-400 uppercase tracking-wider mr-1">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+          </svg>
+          Filter
+        </span>
+
+        <!-- Tahun -->
+        <div class="relative">
+          <select id="f-year" class="filter-select" onchange="applyFilter()">
+            <option value="">Semua Tahun</option>
+            {% for y in years %}
+            <option value="{{ y }}">{{ y }}</option>
+            {% endfor %}
+          </select>
+          <span class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+          </span>
+        </div>
+
+        <!-- Bulan -->
+        <div class="relative">
+          <select id="f-month" class="filter-select" onchange="applyFilter()">
+            <option value="">Semua Bulan</option>
+            <option value="1">Januari</option><option value="2">Februari</option>
+            <option value="3">Maret</option><option value="4">April</option>
+            <option value="5">Mei</option><option value="6">Juni</option>
+            <option value="7">Juli</option><option value="8">Agustus</option>
+            <option value="9">September</option><option value="10">Oktober</option>
+            <option value="11">November</option><option value="12">Desember</option>
+          </select>
+          <span class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+          </span>
+        </div>
+
+        <!-- Tipe -->
+        <div class="relative">
+          <select id="f-tipe" class="filter-select" onchange="applyFilter()">
+            <option value="">Semua Tipe</option>
+            {% for t in types %}
+            <option value="{{ t }}">{{ t }}</option>
+            {% endfor %}
+          </select>
+          <span class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+          </span>
+        </div>
+
+        <!-- Kategori -->
+        <div class="relative">
+          <select id="f-kategori" class="filter-select" onchange="applyFilter()">
+            <option value="">Semua Kategori</option>
+            {% for k in categories %}
+            <option value="{{ k }}">{{ k }}</option>
+            {% endfor %}
+          </select>
+          <span class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+          </span>
+        </div>
+
+        <!-- Active chips + reset -->
+        <div id="active-chips" class="flex flex-wrap gap-2 ml-1"></div>
+        <button onclick="resetFilter()"
+          class="flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-slate-700 hover:bg-slate-100 px-2.5 py-1.5 rounded-lg transition-colors ml-auto">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+          Reset Filter
+        </button>
+      </div>
+    </div>
+
+    <!-- ── KPI CARDS ── -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+
+      <div class="kpi-card" style="background:linear-gradient(135deg,#fff 60%,#dbeafe88);">
+        <div class="flex items-start justify-between mb-3">
+          <div class="w-9 h-9 bg-blue-100 rounded-xl flex items-center justify-center">
+            <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+              <rect x="2" y="5" width="20" height="14" rx="2"/>
+              <line x1="2" y1="10" x2="22" y2="10"/>
+              <line x1="6" y1="15" x2="10" y2="15"/>
+            </svg>
+          </div>
+          <span class="text-xs font-semibold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full">Total</span>
+        </div>
+        <div id="kpi-count" class="text-2xl font-bold text-slate-800">—</div>
+        <div class="text-xs text-slate-400 mt-1">Transaksi</div>
+      </div>
+
+      <div class="kpi-card" style="background:linear-gradient(135deg,#fff 60%,#d1fae588);">
+        <div class="flex items-start justify-between mb-3">
+          <div class="w-9 h-9 bg-emerald-100 rounded-xl flex items-center justify-center">
+            <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+              <rect x="2" y="6" width="20" height="12" rx="2"/>
+              <circle cx="12" cy="12" r="2.5"/>
+              <path d="M6 12h.01M18 12h.01"/>
+            </svg>
+          </div>
+          <span class="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">Keluar</span>
+        </div>
+        <div id="kpi-total" class="text-xl font-bold text-slate-800 amount">—</div>
+        <div class="text-xs text-slate-400 mt-1">Total Pengeluaran</div>
+      </div>
+
+      <div class="kpi-card" style="background:linear-gradient(135deg,#fff 60%,#ede9fe88);">
+        <div class="flex items-start justify-between mb-3">
+          <div class="w-9 h-9 bg-violet-100 rounded-xl flex items-center justify-center">
+            <svg class="w-5 h-5 text-violet-600" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+              <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/>
+              <polyline points="16 7 22 7 22 13"/>
+            </svg>
+          </div>
+          <span class="text-xs font-semibold text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full">Avg</span>
+        </div>
+        <div id="kpi-avg" class="text-xl font-bold text-slate-800 amount">—</div>
+        <div class="text-xs text-slate-400 mt-1">Per Transaksi</div>
+      </div>
+
+      <div class="kpi-card" style="background:linear-gradient(135deg,#fff 60%,#fef3c788);">
+        <div class="flex items-start justify-between mb-3">
+          <div class="w-9 h-9 bg-amber-100 rounded-xl flex items-center justify-center">
+            <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+              <rect x="3" y="4" width="18" height="18" rx="2"/>
+              <line x1="3" y1="9" x2="21" y2="9"/>
+              <line x1="8" y1="2" x2="8" y2="6"/>
+              <line x1="16" y1="2" x2="16" y2="6"/>
+            </svg>
+          </div>
+          <span class="text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">Periode</span>
+        </div>
+        <div id="kpi-period" class="text-sm font-bold text-slate-800 leading-snug">—</div>
+        <div class="text-xs text-slate-400 mt-1">Rentang Data</div>
+      </div>
+
+    </div>
+
+    <!-- ── PENGELUARAN TETAP BANNER ── -->
+    <a href="/pembayaran" id="pembayaran-banner"
+      class="hidden card px-5 py-3.5 mb-5 flex items-center justify-between hover:shadow-md transition-shadow cursor-pointer group">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 bg-violet-100 rounded-xl flex items-center justify-center flex-shrink-0">
+          <svg class="w-4 h-4 text-violet-600" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+            <rect x="3" y="4" width="18" height="18" rx="2"/>
+            <line x1="3" y1="9" x2="21" y2="9"/>
+            <line x1="8" y1="14" x2="16" y2="14"/>
+          </svg>
+        </div>
+        <div>
+          <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Pengeluaran Tetap Bulan Ini</div>
+          <div id="banner-total" class="text-lg font-bold text-violet-700">—</div>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 text-xs text-slate-400 group-hover:text-violet-600 transition-colors">
+        <span id="banner-count">—</span>
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+      </div>
+    </a>
+
+    <!-- ── CHARTS ROW 1: Monthly + Category ── -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
+
+      <!-- Monthly trend (2/3) -->
+      <div class="card p-5 lg:col-span-2">
+        <div class="flex items-start justify-between mb-4">
+          <div>
+            <div class="section-title">Tren Pengeluaran Bulanan</div>
+            <div class="section-sub">Klik bar untuk filter bulan tersebut</div>
+          </div>
+          <div class="flex gap-1.5">
+            <button id="btn-bar" onclick="setChartMode('bar')"
+              class="text-xs px-3 py-1.5 rounded-lg bg-blue-600 text-white font-medium transition-all">Bar</button>
+            <button id="btn-line" onclick="setChartMode('line')"
+              class="text-xs px-3 py-1.5 rounded-lg text-slate-500 hover:bg-slate-100 font-medium transition-all">Line</button>
+          </div>
+        </div>
+        <div style="height:220px; position:relative;">
+          <canvas id="chartMonthly"></canvas>
+        </div>
+      </div>
+
+      <!-- Category donut (1/3) -->
+      <div class="card p-5">
+        <div class="section-title">Per Kategori</div>
+        <div class="section-sub mb-3">Klik slice untuk filter</div>
+        <div style="height:180px; position:relative;" class="flex items-center justify-center">
+          <canvas id="chartCategory"></canvas>
+        </div>
+        <div id="cat-legend" class="mt-3 space-y-1.5"></div>
+      </div>
+
+    </div>
+
+    <!-- ── DIVIDER: PEMASUKAN ── -->
+    <div class="flex items-center gap-3 my-6">
+      <div class="h-px flex-1 bg-slate-200"></div>
+      <span class="flex items-center gap-2 text-xs font-semibold text-slate-400 uppercase tracking-widest">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+          <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
+        </svg>
+        Pemasukan (Gaji)
+      </span>
+      <div class="h-px flex-1 bg-slate-200"></div>
+    </div>
+
+    <!-- ── PAYROLL KPI CARDS ── -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+
+      <div class="kpi-card" style="background:linear-gradient(135deg,#fff 60%,#dcfce788);">
+        <div class="flex items-start justify-between mb-3">
+          <div class="w-9 h-9 bg-green-100 rounded-xl flex items-center justify-center">
+            <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+              <line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>
+            </svg>
+          </div>
+          <span class="text-xs font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">Masuk</span>
+        </div>
+        <div id="pay-total" class="text-xl font-bold text-slate-800 amount">—</div>
+        <div class="text-xs text-slate-400 mt-1">Total Gaji Masuk</div>
+      </div>
+
+      <div class="kpi-card" style="background:linear-gradient(135deg,#fff 60%,#f0fdf488);">
+        <div class="flex items-start justify-between mb-3">
+          <div class="w-9 h-9 bg-teal-100 rounded-xl flex items-center justify-center">
+            <svg class="w-5 h-5 text-teal-600" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+              <rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/>
+            </svg>
+          </div>
+          <span class="text-xs font-semibold text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full">Avg</span>
+        </div>
+        <div id="pay-avg" class="text-xl font-bold text-slate-800 amount">—</div>
+        <div class="text-xs text-slate-400 mt-1">Rata-rata per Gaji</div>
+      </div>
+
+      <div class="kpi-card" style="background:linear-gradient(135deg,#fff 60%,#ecfdf588);">
+        <div class="flex items-start justify-between mb-3">
+          <div class="w-9 h-9 bg-emerald-100 rounded-xl flex items-center justify-center">
+            <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+          </div>
+          <span class="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">Frekuensi</span>
+        </div>
+        <div id="pay-count" class="text-2xl font-bold text-slate-800">—</div>
+        <div class="text-xs text-slate-400 mt-1">Jumlah Gajian</div>
+      </div>
+
+      <div class="kpi-card" style="background:linear-gradient(135deg,#fff 60%,#fef9c388);">
+        <div class="flex items-start justify-between mb-3">
+          <div class="w-9 h-9 bg-yellow-100 rounded-xl flex items-center justify-center">
+            <svg class="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+              <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+            </svg>
+          </div>
+          <span id="net-badge" class="text-xs font-semibold px-2 py-0.5 rounded-full">Net</span>
+        </div>
+        <div id="pay-net" class="text-xl font-bold text-slate-800 amount">—</div>
+        <div class="text-xs text-slate-400 mt-1">Net Cash Flow</div>
+      </div>
+
+    </div>
+
+    <!-- ── INCOME vs EXPENSE CHART + PENGIRIM ── -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
+
+      <div class="card p-5 lg:col-span-2">
+        <div class="flex items-start justify-between mb-4">
+          <div>
+            <div class="section-title">Masuk vs Keluar per Bulan</div>
+            <div class="section-sub">
+              <span class="inline-flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-sm bg-green-500 inline-block"></span>Pemasukan
+              </span>
+              <span class="inline-flex items-center gap-1.5 ml-3">
+                <span class="w-2.5 h-2.5 rounded-sm bg-blue-500 inline-block"></span>Pengeluaran
+              </span>
+            </div>
+          </div>
+        </div>
+        <div style="height:220px; position:relative;">
+          <canvas id="chartComparison"></canvas>
+        </div>
+      </div>
+
+      <div class="card p-5">
+        <div class="section-title">Pengirim Gaji</div>
+        <div class="section-sub mb-4">Berdasarkan total diterima</div>
+        <div id="pengirim-list" class="space-y-3"></div>
+      </div>
+
+    </div>
+
+    <!-- ── PAYROLL TABLE ── -->
+    <div class="card overflow-hidden mb-5">
+      <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+        <div>
+          <div class="section-title">Riwayat Gaji Masuk</div>
+          <div id="pay-table-info" class="section-sub">Memuat...</div>
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="bg-slate-50 border-b border-slate-100">
+              <th class="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-5 py-3 w-32">Tanggal</th>
+              <th class="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-3">Pengirim</th>
+              <th class="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-3">Penerima</th>
+              <th class="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-3">Berita</th>
+              <th class="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-5 py-3 w-36">Jumlah</th>
+            </tr>
+          </thead>
+          <tbody id="pay-table-body">
+            <tr><td colspan="5" class="text-center py-10 text-slate-300">Memuat data...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <!-- Payroll Pagination -->
+      <div class="px-5 py-3 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2">
+        <span id="pay-page-info" class="text-xs text-slate-400"></span>
+        <div class="flex items-center gap-1">
+          <button id="pay-btn-prev" onclick="goPayPage(-1)"
+            class="text-xs px-3 py-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 font-medium transition-colors disabled:opacity-40 disabled:pointer-events-none">
+            <svg class="w-3.5 h-3.5 mr-1 inline-block" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>Sebelumnya
+          </button>
+          <div id="pay-page-numbers" class="flex gap-1"></div>
+          <button id="pay-btn-next" onclick="goPayPage(1)"
+            class="text-xs px-3 py-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 font-medium transition-colors disabled:opacity-40 disabled:pointer-events-none">
+            Berikutnya<svg class="w-3.5 h-3.5 ml-1 inline-block" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── CHARTS ROW 2: Type + Top Merchants ── -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
+
+      <!-- Type bar (1/3) -->
+      <div class="card p-5">
+        <div class="section-title">Per Tipe Transaksi</div>
+        <div class="section-sub mb-3">Klik bar untuk filter</div>
+        <div style="height:180px; position:relative;">
+          <canvas id="chartType"></canvas>
+        </div>
+      </div>
+
+      <!-- Top Merchants (2/3) -->
+      <div class="card p-5 lg:col-span-2">
+        <div class="section-title mb-1">Top 8 Merchant / Penerima</div>
+        <div class="section-sub mb-4">Berdasarkan total pengeluaran</div>
+        <div id="merchant-list" class="space-y-3"></div>
+      </div>
+
+    </div>
+
+    <!-- ── TRANSACTION TABLE ── -->
+    <div class="card overflow-hidden mb-6">
+      <!-- Table header -->
+      <div class="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center gap-3 justify-between">
+        <div>
+          <div class="section-title">Riwayat Transaksi</div>
+          <div id="table-info" class="section-sub">Memuat...</div>
+        </div>
+        <div class="relative">
+          <input id="search-input" type="text" placeholder="Cari merchant, kategori, keterangan..."
+            oninput="searchTable()"
+            class="pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 w-64 font-medium text-slate-700 placeholder:text-slate-400" />
+          <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+          </span>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="bg-slate-50 border-b border-slate-100">
+              <th class="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-5 py-3 w-32">Tanggal</th>
+              <th class="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-3 w-28">Tipe</th>
+              <th class="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-3">Merchant / Penerima</th>
+              <th class="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-3 w-36">Kategori</th>
+              <th class="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide px-5 py-3 w-36">Total</th>
+            </tr>
+          </thead>
+          <tbody id="table-body">
+            <tr><td colspan="5" class="text-center py-12 text-slate-300 text-sm">Memuat data...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      <div class="px-5 py-3 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2">
+        <span id="page-info" class="text-xs text-slate-400"></span>
+        <div class="flex items-center gap-1">
+          <button id="btn-prev" onclick="goPage(-1)"
+            class="text-xs px-3 py-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 font-medium transition-colors disabled:opacity-40 disabled:pointer-events-none">
+            <svg class="w-3.5 h-3.5 mr-1 inline-block" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>Sebelumnya
+          </button>
+          <div id="page-numbers" class="flex gap-1"></div>
+          <button id="btn-next" onclick="goPage(1)"
+            class="text-xs px-3 py-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 font-medium transition-colors disabled:opacity-40 disabled:pointer-events-none">
+            Berikutnya<svg class="w-3.5 h-3.5 ml-1 inline-block" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /max-w -->
+
+<!-- ── SYNC MODAL ── -->
+<div id="sync-overlay"
+  class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
+
+    <!-- Modal header -->
+    <div class="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+      <div class="flex items-center gap-2.5">
+        <div id="modal-spinner" class="spinner"></div>
+        <div id="modal-done-icon" class="hidden w-5 h-5 bg-green-100 rounded-full flex items-center justify-center">
+          <svg class="w-3 h-3 text-green-600" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <span id="modal-title" class="font-semibold text-slate-800 text-sm">Sync...</span>
+      </div>
+    </div>
+
+    <!-- Log messages -->
+    <div id="sync-log"
+      class="px-5 py-4 space-y-1.5 max-h-60 overflow-y-auto bg-slate-50 font-mono text-xs">
+    </div>
+
+    <!-- Progress bar -->
+    <div id="sync-prog-wrap" class="hidden px-5 pt-3 pb-1">
+      <div class="progress-bar h-2">
+        <div id="sync-prog-fill" class="progress-fill bg-blue-500 transition-all duration-200" style="width:0%"></div>
+      </div>
+      <div class="flex justify-between mt-1">
+        <span id="sync-prog-text" class="text-xs text-slate-500"></span>
+        <span id="sync-prog-pct" class="text-xs font-semibold text-slate-600">0%</span>
+      </div>
+    </div>
+
+    <!-- Result / close -->
+    <div class="px-5 py-4 border-t border-slate-100">
+      <div id="modal-status" class="text-xs text-slate-400 mb-3">Sedang berjalan...</div>
+      <button id="modal-close-btn" onclick="closeSyncModal()" disabled
+        class="w-full py-2.5 text-sm font-semibold rounded-xl transition-colors
+               bg-slate-100 text-slate-400 cursor-not-allowed"
+        id="modal-close-btn">
+        Tutup &amp; Refresh Dashboard
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+//  CONSTANTS
+// ═══════════════════════════════════════════════════
+const PALETTE = [
+  '#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6',
+  '#ec4899','#14b8a6','#f97316','#6366f1','#84cc16',
+];
+
+const TIPE_CFG = {
+  'QRIS':           { color: '#3b82f6', bg: '#eff6ff',  text: '#1d4ed8' },
+  'Transfer Keluar':{ color: '#8b5cf6', bg: '#f5f3ff',  text: '#6d28d9' },
+  'Top-up':         { color: '#10b981', bg: '#ecfdf5',  text: '#065f46' },
+};
+
+const MONTHS = ['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agt','Sep','Okt','Nov','Des'];
+const PAGE_SIZE = 10;
+
+// ═══════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════
+let allRows    = [];
+let filtered   = [];
+let curPage    = 1;
+let allPayRows = [];
+let curPayPage = 1;
+let chartMode  = 'bar';
+let mChart, cChart, tChart;
+
+// ═══════════════════════════════════════════════════
+//  FORMATTERS
+// ═══════════════════════════════════════════════════
+function fmt(n) {
+  if (n == null) return '—';
+  const v = Number(n);
+  if (v >= 1_000_000) return 'Rp ' + (v / 1_000_000).toFixed(1).replace('.0','') + ' jt';
+  if (v >= 100_000)   return 'Rp ' + (v / 1_000).toFixed(0) + ' rb';
+  return 'Rp ' + v.toLocaleString('id-ID');
+}
+function fmtFull(n) {
+  if (n == null) return 'Rp 0';
+  return 'Rp ' + Number(n).toLocaleString('id-ID');
+}
+function fmtDate(d) {
+  if (!d) return '—';
+  const [y, m, dd] = d.split('-');
+  return `${dd} ${MONTHS[+m] || ''} ${y}`;
+}
+function fmtDateShort(d) {
+  if (!d) return '—';
+  const [y, m, dd] = d.split('-');
+  return `${dd} ${MONTHS[+m] || ''} '${y.slice(2)}`;
+}
+
+// ═══════════════════════════════════════════════════
+//  FILTER LOGIC
+// ═══════════════════════════════════════════════════
+function getFilters() {
+  return {
+    year:     document.getElementById('f-year').value,
+    month:    document.getElementById('f-month').value,
+    tipe:     document.getElementById('f-tipe').value,
+    kategori: document.getElementById('f-kategori').value,
+  };
+}
+
+function applyFilter() {
+  syncSelectStyles();
+  renderChips();
+  loadData();
+}
+
+function setFilter(key, val) {
+  const map = { year:'f-year', month:'f-month', tipe:'f-tipe', kategori:'f-kategori' };
+  if (map[key]) document.getElementById(map[key]).value = val;
+  applyFilter();
+}
+
+function setFilters(obj) {
+  const map = { year:'f-year', month:'f-month', tipe:'f-tipe', kategori:'f-kategori' };
+  Object.entries(obj).forEach(([k, v]) => {
+    if (map[k]) document.getElementById(map[k]).value = v;
+  });
+  applyFilter();
+}
+
+function resetFilter() {
+  ['f-year','f-month','f-tipe','f-kategori'].forEach(id =>
+    document.getElementById(id).value = ''
+  );
+  applyFilter();
+}
+
+function clearFilter(key) {
+  document.getElementById('f-' + key).value = '';
+  applyFilter();
+}
+
+function syncSelectStyles() {
+  const f = getFilters();
+  const keys = ['year','month','tipe','kategori'];
+  keys.forEach(k => {
+    const el = document.getElementById('f-' + k);
+    if (f[k]) el.classList.add('active');
+    else el.classList.remove('active');
+  });
+}
+
+function renderChips() {
+  const f = getFilters();
+  const labels = {
+    year:     f.year || '',
+    month:    f.month ? MONTHS[+f.month] : '',
+    tipe:     f.tipe || '',
+    kategori: f.kategori || '',
+  };
+  const container = document.getElementById('active-chips');
+  container.innerHTML = '';
+  Object.entries(labels).forEach(([k, v]) => {
+    if (!v) return;
+    const chip = document.createElement('div');
+    chip.className = 'chip';
+    chip.innerHTML = `${v}<span class="chip-clear" onclick="clearFilter('${k}')"><svg style="width:10px;height:10px;display:inline-block;vertical-align:middle" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>`;
+    container.appendChild(chip);
+  });
+}
+
+// ═══════════════════════════════════════════════════
+//  DATA LOADING
+// ═══════════════════════════════════════════════════
+async function loadData() {
+  document.getElementById('loading').classList.remove('hidden');
+  const f = getFilters();
+  const q = new URLSearchParams(f);
+  try {
+    const [res, payRes, pbRes] = await Promise.all([
+      fetch(`/api/data?${q}`),
+      fetch(`/api/payroll?${new URLSearchParams({year: f.year, month: f.month})}`),
+      fetch('/api/pembayaran'),
+    ]);
+    const data    = await res.json();
+    const payData = await payRes.json();
+    const pbData  = await pbRes.json();
+    updatePembayaranBanner(pbData.ringkasan);
+
+    updateKPI(data.kpi);
+    buildMonthly(data.per_bulan);
+    buildCategory(data.per_kategori);
+    buildType(data.per_tipe);
+    buildMerchants(data.top_merchant);
+    buildComparison(data.per_bulan || [], data.per_bulan_masuk || []);
+    allRows = data.transaksi;
+    curPage = 1;
+    renderTable();
+
+    updatePayrollKPI(payData.grand, data.kpi);
+    buildPengirim(payData.per_pengirim);
+    allPayRows = payData.detail || [];
+    curPayPage = 1;
+    renderPayrollTable();
+
+    document.getElementById('last-update').textContent =
+      'Diperbarui pukul ' + new Date().toLocaleTimeString('id-ID', {hour:'2-digit',minute:'2-digit'});
+  } catch(e) {
+    console.error(e);
+  } finally {
+    document.getElementById('loading').classList.add('hidden');
+  }
+}
+
+// ═══════════════════════════════════════════════════
+//  KPI
+// ═══════════════════════════════════════════════════
+function updatePembayaranBanner(r) {
+  if (!r || !r.items_aktif) return;
+  const banner = document.getElementById('pembayaran-banner');
+  banner.classList.remove('hidden');
+  banner.classList.add('flex');
+  document.getElementById('banner-total').textContent = fmt(r.total_bulan_ini);
+  document.getElementById('banner-count').textContent = `${r.items_aktif} item aktif →`;
+}
+
+function updateKPI(k) {
+  document.getElementById('kpi-count').textContent = (k.total_transaksi || 0).toLocaleString('id-ID');
+  document.getElementById('kpi-total').textContent = fmt(k.total_pengeluaran);
+  document.getElementById('kpi-avg').textContent   = fmt(k.rata_rata);
+  if (k.tanggal_awal && k.tanggal_akhir) {
+    document.getElementById('kpi-period').innerHTML =
+      fmtDate(k.tanggal_awal) + '<br><span class="text-slate-400 font-normal text-xs">s/d</span> ' + fmtDate(k.tanggal_akhir);
+  } else {
+    document.getElementById('kpi-period').textContent = '—';
+  }
+}
+
+// ═══════════════════════════════════════════════════
+//  CHART: MONTHLY (single, pengeluaran saja)
+// ═══════════════════════════════════════════════════
+function buildMonthly(data) {
+  if (mChart) mChart.destroy();
+  const ctx     = document.getElementById('chartMonthly');
+  const labels  = data.map(d => { const [y,m]=d.bulan.split('-'); return MONTHS[+m]+" '"+y.slice(2); });
+  const totals  = data.map(d => d.total||0);
+  const bulanRaw= data.map(d => d.bulan);
+  const maxVal  = Math.max(...totals, 1);
+
+  mChart = new Chart(ctx, {
+    type: chartMode,
+    data: { labels, datasets: [{
+      label: 'Pengeluaran', data: totals,
+      backgroundColor: chartMode==='bar'
+        ? totals.map(v=>`rgba(59,130,246,${0.45+0.55*(v/maxVal)})`)
+        : 'rgba(59,130,246,0.12)',
+      borderColor:'#3b82f6', borderWidth: chartMode==='bar'?0:2,
+      borderRadius: chartMode==='bar'?6:0,
+      fill: chartMode==='line', tension:0.4,
+      pointBackgroundColor:'#3b82f6', pointRadius:4, pointHoverRadius:6,
+    }]},
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins: { legend:{display:false}, tooltip:{ backgroundColor:'#1e293b', callbacks:{ label:c=>'  '+fmtFull(c.parsed.y) } } },
+      onClick:(e,els)=>{ if(!els.length)return; const[y,m]=bulanRaw[els[0].index].split('-'); setFilters({year:y,month:String(+m)}); },
+      scales: {
+        x:{ grid:{display:false}, ticks:{font:{size:10},color:'#94a3b8',maxRotation:45} },
+        y:{ grid:{color:'#f1f5f9'}, ticks:{font:{size:10},color:'#94a3b8', callback:v=>v>=1e6?(v/1e6).toFixed(0)+'jt':(v/1e3).toFixed(0)+'rb'} }
+      }
+    }
+  });
+}
+
+function setChartMode(mode) {
+  chartMode = mode;
+  document.getElementById('btn-bar').className = `text-xs px-3 py-1.5 rounded-lg font-medium transition-all ${mode==='bar'?'bg-blue-600 text-white':'text-slate-500 hover:bg-slate-100'}`;
+  document.getElementById('btn-line').className = `text-xs px-3 py-1.5 rounded-lg font-medium transition-all ${mode==='line'?'bg-blue-600 text-white':'text-slate-500 hover:bg-slate-100'}`;
+  loadData();
+}
+
+// ═══════════════════════════════════════════════════
+//  CHART: COMPARISON (Masuk vs Keluar)
+// ═══════════════════════════════════════════════════
+let compChart;
+function buildComparison(keluar, masuk) {
+  keluar = keluar || [];
+  masuk  = masuk  || [];
+  if (compChart) compChart.destroy();
+  // Gabungkan semua bulan dari kedua dataset
+  const allBulan = [...new Set([...keluar.map(d=>d.bulan), ...masuk.map(d=>d.bulan)])].filter(b=>b&&b.includes('-')).sort();
+  const keluarMap = Object.fromEntries(keluar.map(d=>[d.bulan, d.total||0]));
+  const masukMap  = Object.fromEntries(masuk.map(d=>[d.bulan, d.total||0]));
+
+  const labels = allBulan.map(b=>{ const[y,m]=b.split('-'); return MONTHS[+m]+" '"+y.slice(2); });
+  const ctx = document.getElementById('chartComparison');
+
+  compChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Pemasukan', data: allBulan.map(b=>masukMap[b]||0),
+          backgroundColor: 'rgba(34,197,94,0.75)', borderColor:'#16a34a',
+          borderWidth:0, borderRadius:5,
+        },
+        {
+          label: 'Pengeluaran', data: allBulan.map(b=>keluarMap[b]||0),
+          backgroundColor: 'rgba(59,130,246,0.65)', borderColor:'#2563eb',
+          borderWidth:0, borderRadius:5,
+        },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins: {
+        legend:{ display:false },
+        tooltip:{
+          backgroundColor:'#1e293b', cornerRadius:8, padding:10,
+          callbacks:{ label:c=>`  ${c.dataset.label}: ${fmtFull(c.parsed.y)}` }
+        },
+      },
+      scales: {
+        x:{ grid:{display:false}, ticks:{font:{size:10},color:'#94a3b8',maxRotation:45} },
+        y:{ grid:{color:'#f1f5f9'}, ticks:{font:{size:10},color:'#94a3b8', callback:v=>v>=1e6?(v/1e6).toFixed(0)+'jt':(v/1e3).toFixed(0)+'rb'} }
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════
+//  PAYROLL KPI
+// ═══════════════════════════════════════════════════
+function updatePayrollKPI(grand, expKpi) {
+  if (!grand) return;
+  const masuk  = grand.total_masuk  || 0;
+  const keluar = expKpi ? (expKpi.total_pengeluaran || 0) : 0;
+  const net    = masuk - keluar;
+
+  document.getElementById('pay-total').textContent = fmt(masuk);
+  document.getElementById('pay-avg').textContent   = fmt(grand.rata_rata);
+  document.getElementById('pay-count').textContent = (grand.total_payroll||0).toLocaleString('id-ID');
+
+  const netEl   = document.getElementById('pay-net');
+  const badgeEl = document.getElementById('net-badge');
+  netEl.textContent   = fmt(Math.abs(net));
+  netEl.style.color   = net >= 0 ? '#16a34a' : '#dc2626';
+  badgeEl.textContent = net >= 0 ? 'Surplus' : 'Defisit';
+  badgeEl.className   = `text-xs font-semibold px-2 py-0.5 rounded-full ${net>=0?'text-green-600 bg-green-50':'text-red-600 bg-red-50'}`;
+}
+
+// ═══════════════════════════════════════════════════
+//  PENGIRIM GAJI
+// ═══════════════════════════════════════════════════
+function buildPengirim(data) {
+  const el = document.getElementById('pengirim-list');
+  if (!data || !data.length) {
+    el.innerHTML = '<p class="text-sm text-slate-400 py-4 text-center">Belum ada data payroll</p>';
+    return;
+  }
+  const maxVal = Math.max(...data.map(d=>d.total), 1);
+  el.innerHTML = data.map((d,i)=>`
+    <div class="flex items-center gap-3">
+      <span class="text-xs text-slate-300 font-medium w-4 text-right flex-shrink-0">${i+1}</span>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-sm font-medium text-slate-700 truncate">${d.pengirim||'?'}</span>
+          <div class="flex items-center gap-2 ml-2 flex-shrink-0">
+            <span class="text-xs text-slate-400">${d.jumlah}x</span>
+            <span class="text-sm font-semibold text-slate-800 amount">${fmt(d.total)}</span>
+          </div>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill bg-green-500" style="width:${(d.total/maxVal*100).toFixed(1)}%"></div>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+// ═══════════════════════════════════════════════════
+//  PAYROLL TABLE
+// ═══════════════════════════════════════════════════
+function renderPayrollTable() {
+  const total      = allPayRows.length;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  if (curPayPage > totalPages) curPayPage = totalPages;
+  const start = (curPayPage - 1) * PAGE_SIZE;
+  const end   = Math.min(start + PAGE_SIZE, total);
+  const rows  = allPayRows.slice(start, end);
+
+  const el = document.getElementById('pay-table-body');
+  document.getElementById('pay-table-info').textContent = total
+    ? `${total.toLocaleString('id-ID')} record · halaman ${curPayPage} dari ${totalPages} (${start+1}–${end})`
+    : '0 record';
+
+  if (!total) {
+    el.innerHTML = '<tr><td colspan="5" class="text-center py-10 text-slate-300">Belum ada data payroll</td></tr>';
+  } else {
+    el.innerHTML = rows.map(p=>`
+      <tr class="tr-row border-b border-slate-50">
+        <td class="px-5 py-3 text-xs whitespace-nowrap">
+          <div class="font-medium text-slate-700">${fmtDate(p.tanggal)}</div>
+          ${p.jam?`<div class="text-slate-400">${p.jam.substring(0,5)}</div>`:''}
+        </td>
+        <td class="px-4 py-3">
+          <div class="text-sm font-medium text-slate-800">${p.pengirim||'—'}</div>
+        </td>
+        <td class="px-4 py-3">
+          <div class="text-sm text-slate-700">${p.nama_penerima||'—'}</div>
+        </td>
+        <td class="px-4 py-3">
+          <div class="text-xs text-slate-500">${p.berita||'—'}</div>
+        </td>
+        <td class="px-5 py-3 text-right font-semibold text-green-700 text-sm whitespace-nowrap col-amount">
+          +${fmtFull(p.jumlah)}
+        </td>
+      </tr>`).join('');
+  }
+
+  // pagination controls
+  document.getElementById('pay-page-info').textContent = `Halaman ${curPayPage} dari ${totalPages}`;
+  document.getElementById('pay-btn-prev').disabled = curPayPage <= 1;
+  document.getElementById('pay-btn-next').disabled = curPayPage >= totalPages;
+  const pn = document.getElementById('pay-page-numbers');
+  const lo = Math.max(1, curPayPage - 2);
+  const hi = Math.min(totalPages, lo + 4);
+  pn.innerHTML = '';
+  for (let p = lo; p <= hi; p++) {
+    const b = document.createElement('button');
+    b.textContent = p;
+    b.onclick = () => { curPayPage = p; renderPayrollTable(); };
+    b.className = `text-xs w-8 h-7 rounded-lg border font-medium transition-colors ${p === curPayPage ? 'page-btn-active border-blue-600' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`;
+    pn.appendChild(b);
+  }
+}
+
+function goPayPage(delta) {
+  curPayPage += delta;
+  renderPayrollTable();
+}
+
+// ═══════════════════════════════════════════════════
+//  CHART: CATEGORY DONUT
+// ═══════════════════════════════════════════════════
+function buildCategory(data) {
+  if (cChart) cChart.destroy();
+  const ctx    = document.getElementById('chartCategory');
+  const labels = data.map(d => d.kategori || 'Lainnya');
+  const values = data.map(d => d.total || 0);
+  const colors = PALETTE.slice(0, labels.length);
+
+  cChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 3, borderColor: '#fff', hoverBorderColor: '#fff' }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      cutout: '70%',
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1e293b',
+          callbacks: { label: c => `  ${c.label}: ${fmt(c.parsed)}` }
+        },
+      },
+      onClick: (e, els) => {
+        if (!els.length) return;
+        setFilter('kategori', labels[els[0].index]);
+      },
+    }
+  });
+
+  // Legend
+  const el = document.getElementById('cat-legend');
+  const total = values.reduce((a, b) => a + b, 0);
+  el.innerHTML = data.slice(0, 6).map((d, i) => {
+    const pct = total > 0 ? (d.total / total * 100).toFixed(1) : 0;
+    return `
+      <div class="flex items-center justify-between cursor-pointer hover:bg-slate-50 rounded-lg px-1.5 py-1 transition-colors"
+           onclick="setFilter('kategori','${d.kategori}')">
+        <div class="flex items-center gap-2 min-w-0">
+          <div class="w-2 h-2 rounded-full flex-shrink-0" style="background:${colors[i]}"></div>
+          <span class="text-xs text-slate-600 truncate">${d.kategori || 'Lainnya'}</span>
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0 ml-2">
+          <span class="text-xs text-slate-400">${pct}%</span>
+          <span class="text-xs font-semibold text-slate-700 amount">${fmt(d.total)}</span>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════
+//  CHART: TYPE
+// ═══════════════════════════════════════════════════
+function buildType(data) {
+  if (tChart) tChart.destroy();
+  const ctx    = document.getElementById('chartType');
+  const labels = data.map(d => d.tipe || '?');
+  const values = data.map(d => d.total || 0);
+  const colors = labels.map(l => (TIPE_CFG[l] || { color: '#94a3b8' }).color);
+
+  tChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: colors.map(c => c + 'cc'),
+        borderColor: colors,
+        borderWidth: 1.5,
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1e293b',
+          callbacks: { label: c => '  ' + fmtFull(c.parsed.x) }
+        },
+      },
+      onClick: (e, els) => {
+        if (!els.length) return;
+        setFilter('tipe', labels[els[0].index]);
+      },
+      scales: {
+        x: {
+          grid: { color: '#f1f5f9', drawBorder: false },
+          ticks: { font: {size:10}, color:'#94a3b8',
+            callback: v => v>=1e6 ? (v/1e6).toFixed(0)+'jt' : (v/1e3).toFixed(0)+'rb' }
+        },
+        y: {
+          grid: { display: false },
+          ticks: { font: {size:11}, color:'#475569', font: {weight:'500'} }
+        }
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════
+//  TOP MERCHANTS
+// ═══════════════════════════════════════════════════
+function buildMerchants(data) {
+  const el = document.getElementById('merchant-list');
+  if (!data || !data.length) {
+    el.innerHTML = '<p class="text-sm text-slate-400 py-4 text-center">Tidak ada data</p>';
+    return;
+  }
+  const maxVal = Math.max(...data.map(d => d.total), 1);
+  el.innerHTML = data.map((d, i) => `
+    <div class="flex items-center gap-3">
+      <span class="text-xs text-slate-300 font-medium w-4 text-right flex-shrink-0">${i+1}</span>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-sm font-medium text-slate-700 truncate">${d.merchant_penerima}</span>
+          <div class="flex items-center gap-2 ml-2 flex-shrink-0">
+            <span class="text-xs text-slate-400">${d.jumlah}x</span>
+            <span class="text-sm font-semibold text-slate-800 amount">${fmt(d.total)}</span>
+          </div>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill bg-blue-500" style="width:${(d.total/maxVal*100).toFixed(1)}%"></div>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ═══════════════════════════════════════════════════
+//  TABLE
+// ═══════════════════════════════════════════════════
+function renderTable() {
+  const q = (document.getElementById('search-input').value || '').toLowerCase().trim();
+  filtered = allRows.filter(t => {
+    if (!q) return true;
+    return (t.merchant_penerima || '').toLowerCase().includes(q)
+      || (t.kategori   || '').toLowerCase().includes(q)
+      || (t.tipe       || '').toLowerCase().includes(q)
+      || (t.keterangan || '').toLowerCase().includes(q)
+      || (t.no_referensi || '').toLowerCase().includes(q);
+  });
+
+  const total     = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  if (curPage > totalPages) curPage = totalPages;
+
+  const start = (curPage - 1) * PAGE_SIZE;
+  const rows  = filtered.slice(start, start + PAGE_SIZE);
+
+  const end = Math.min(start + PAGE_SIZE, total);
+  document.getElementById('table-info').textContent =
+    total ? `${total.toLocaleString('id-ID')} transaksi · halaman ${curPage} dari ${totalPages} (${start+1}–${end})` : 'Tidak ada transaksi';
+
+  const tbody = document.getElementById('table-body');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center py-12 text-slate-300">Tidak ada transaksi ditemukan</td></tr>';
+  } else {
+    tbody.innerHTML = rows.map(t => {
+      const cfg = TIPE_CFG[t.tipe] || { bg:'#f8fafc', text:'#475569' };
+      return `
+      <tr class="tr-row border-b border-slate-50">
+        <td class="px-5 py-3 text-xs text-slate-600 whitespace-nowrap">
+          <div class="font-medium text-slate-700">${fmtDate(t.tanggal)}</div>
+          ${t.jam ? `<div class="text-slate-400">${t.jam.substring(0,5)}</div>` : ''}
+        </td>
+        <td class="px-4 py-3">
+          <span class="badge text-xs" style="background:${cfg.bg};color:${cfg.text}">${t.tipe || '?'}</span>
+        </td>
+        <td class="px-4 py-3 max-w-xs">
+          <div class="text-sm font-medium text-slate-800 truncate">${t.merchant_penerima || '—'}</div>
+          ${t.keterangan ? `<div class="text-xs text-slate-400 truncate">${t.keterangan}</div>` : ''}
+        </td>
+        <td class="px-4 py-3">
+          <span class="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full font-medium">${t.kategori || '—'}</span>
+        </td>
+        <td class="px-5 py-3 text-right font-semibold text-slate-800 text-sm whitespace-nowrap col-amount">
+          ${fmtFull(t.total)}
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  buildPagination(totalPages);
+}
+
+function buildPagination(totalPages) {
+  document.getElementById('page-info').textContent = `Halaman ${curPage} dari ${totalPages}`;
+  document.getElementById('btn-prev').disabled = curPage <= 1;
+  document.getElementById('btn-next').disabled = curPage >= totalPages;
+
+  const pn    = document.getElementById('page-numbers');
+  pn.innerHTML = '';
+  const lo  = Math.max(1, curPage - 2);
+  const hi  = Math.min(totalPages, lo + 4);
+  for (let p = lo; p <= hi; p++) {
+    const b = document.createElement('button');
+    b.textContent = p;
+    b.onclick = () => { curPage = p; renderTable(); window.scrollTo(0, document.getElementById('table-body').offsetTop - 80); };
+    b.className = `text-xs w-8 h-7 rounded-lg border font-medium transition-colors ${p === curPage ? 'page-btn-active border-blue-600' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`;
+    pn.appendChild(b);
+  }
+}
+
+function goPage(delta) {
+  curPage += delta;
+  renderTable();
+}
+
+function searchTable() {
+  curPage = 1;
+  renderTable();
+}
+
+// ═══════════════════════════════════════════════════
+//  TOGGLE AMOUNTS
+// ═══════════════════════════════════════════════════
+let amountsHidden = false;
+function toggleAmounts() {
+  amountsHidden = !amountsHidden;
+  document.body.classList.toggle('amounts-hidden', amountsHidden);
+  const btn = document.getElementById('toggle-amounts');
+  btn.querySelector('.icon-eye').classList.toggle('hidden', amountsHidden);
+  btn.querySelector('.icon-eye-off').classList.toggle('hidden', !amountsHidden);
+  btn.classList.toggle('is-hidden', amountsHidden);
+  btn.title = amountsHidden ? 'Tampilkan nominal' : 'Sembunyikan nominal';
+}
+
+// ═══════════════════════════════════════════════════
+//  SYNC DROPDOWN
+// ═══════════════════════════════════════════════════
+const SYNC_TITLES = {
+  pengeluaran:     'Sync Semua Pengeluaran',
+  pemasukan:       'Sync Semua Pemasukan',
+  harian:          'Sync Hari Ini',
+  rekening_koran:  'Sync Rekening Koran',
+};
+
+// Set today's date label
+(function() {
+  const d = new Date();
+  const label = d.toLocaleDateString('id-ID', {day:'numeric',month:'long',year:'numeric'});
+  document.querySelectorAll('.today-date').forEach(el => {
+    el.textContent = `Pengeluaran + pemasukan — ${label}`;
+  });
+})();
+
+function toggleSyncMenu() {
+  const menu = document.getElementById('sync-menu');
+  menu.classList.toggle('hidden');
+}
+
+document.addEventListener('click', e => {
+  const wrap = document.getElementById('sync-wrap');
+  if (wrap && !wrap.contains(e.target)) {
+    document.getElementById('sync-menu').classList.add('hidden');
+  }
+});
+
+let activeEventSource = null;
+
+function doSync(type) {
+  document.getElementById('sync-menu').classList.add('hidden');
+
+  // Reset modal state
+  document.getElementById('modal-title').textContent    = SYNC_TITLES[type] || 'Sync...';
+  document.getElementById('sync-log').innerHTML         = '';
+  document.getElementById('sync-prog-wrap').classList.add('hidden');
+  document.getElementById('sync-prog-fill').style.width = '0%';
+  document.getElementById('sync-prog-pct').textContent  = '0%';
+  document.getElementById('sync-prog-text').textContent = '';
+  document.getElementById('modal-status').textContent   = 'Sedang berjalan...';
+  document.getElementById('modal-status').className     = 'text-xs text-slate-400 mb-3';
+  document.getElementById('modal-spinner').classList.remove('hidden');
+  document.getElementById('modal-done-icon').classList.add('hidden');
+
+  const closeBtn = document.getElementById('modal-close-btn');
+  closeBtn.disabled = true;
+  closeBtn.className = 'w-full py-2.5 text-sm font-semibold rounded-xl bg-slate-100 text-slate-400 cursor-not-allowed transition-colors';
+
+  document.getElementById('sync-overlay').classList.remove('hidden');
+
+  if (activeEventSource) { activeEventSource.close(); }
+  activeEventSource = new EventSource(`/api/sync/${type}`);
+
+  activeEventSource.onmessage = e => {
+    const msg  = JSON.parse(e.data);
+    const log  = document.getElementById('sync-log');
+
+    if (msg.type === 'log') {
+      const row = document.createElement('div');
+      row.className = msg.cls === 'ok'
+        ? 'text-green-700 font-semibold'
+        : 'text-slate-500';
+      row.textContent = msg.text;
+      log.appendChild(row);
+      log.scrollTop = log.scrollHeight;
+
+    } else if (msg.type === 'progress') {
+      document.getElementById('sync-prog-wrap').classList.remove('hidden');
+      document.getElementById('sync-prog-fill').style.width = msg.pct + '%';
+      document.getElementById('sync-prog-pct').textContent  = msg.pct + '%';
+      document.getElementById('sync-prog-text').textContent = msg.text || '';
+
+    } else if (msg.type === 'done') {
+      activeEventSource.close();
+      activeEventSource = null;
+      document.getElementById('modal-spinner').classList.add('hidden');
+      document.getElementById('modal-done-icon').classList.remove('hidden');
+      document.getElementById('sync-prog-fill').style.width = '100%';
+      document.getElementById('sync-prog-pct').textContent  = '100%';
+
+      const statusEl = document.getElementById('modal-status');
+      statusEl.className = 'text-xs font-semibold mb-3 ' + (msg.baru > 0 ? 'text-green-700' : 'text-slate-500');
+      statusEl.textContent = msg.baru > 0
+        ? `✓ Selesai! ${msg.baru} data baru berhasil disimpan.`
+        : `✓ Selesai. Tidak ada data baru (${msg.skip} sudah ada).`;
+
+      const cb = document.getElementById('modal-close-btn');
+      cb.disabled = false;
+      cb.className = 'w-full py-2.5 text-sm font-semibold rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-colors cursor-pointer';
+
+    } else if (msg.type === 'error') {
+      activeEventSource.close();
+      activeEventSource = null;
+      document.getElementById('modal-spinner').classList.add('hidden');
+
+      const statusEl = document.getElementById('modal-status');
+      statusEl.className = 'text-xs font-semibold mb-3 text-red-600';
+      statusEl.textContent = `Error: ${msg.message}`;
+
+      const cb = document.getElementById('modal-close-btn');
+      cb.disabled = false;
+      cb.className = 'w-full py-2.5 text-sm font-semibold rounded-xl bg-slate-700 text-white hover:bg-slate-800 transition-colors cursor-pointer';
+    }
+  };
+
+  activeEventSource.onerror = () => {
+    if (activeEventSource) { activeEventSource.close(); activeEventSource = null; }
+    const statusEl = document.getElementById('modal-status');
+    statusEl.className = 'text-xs text-red-500 mb-3';
+    statusEl.textContent = 'Koneksi terputus.';
+    document.getElementById('modal-spinner').classList.add('hidden');
+    const cb = document.getElementById('modal-close-btn');
+    cb.disabled = false;
+    cb.className = 'w-full py-2.5 text-sm font-semibold rounded-xl bg-slate-700 text-white hover:bg-slate-800 transition-colors cursor-pointer';
+  };
+}
+
+function closeSyncModal() {
+  document.getElementById('sync-overlay').classList.add('hidden');
+  if (activeEventSource) { activeEventSource.close(); activeEventSource = null; }
+  loadData();
+}
+
+// ═══════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════
+loadData();
+</script>
+</body>
+</html>

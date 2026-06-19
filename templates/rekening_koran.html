@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rekening Koran — Livin Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; background: #f8fafc; }
+    .card { background:#fff; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,.07); border:1px solid #e2e8f0; }
+    .kpi-label { font-size:.75rem; color:#64748b; font-weight:500; text-transform:uppercase; letter-spacing:.05em; }
+    .kpi-value { font-size:1.5rem; font-weight:700; color:#0f172a; }
+    .badge { display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;font-size:.7rem;font-weight:600; }
+    .badge-debit   { background:#fee2e2;color:#b91c1c; }
+    .badge-kredit  { background:#dcfce7;color:#15803d; }
+    .nav-link { display:inline-flex;align-items:center;gap:6px;height:100%;padding:0 4px;font-size:.875rem;font-weight:500;color:#64748b;border-bottom:2px solid transparent;transition:color .15s,border-color .15s; }
+    .nav-link:hover { color:#0f172a; }
+    .nav-link.active { color:#059669;border-bottom-color:#059669; }
+    .hdr-btn { display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:7px;font-size:.8125rem;font-weight:500;cursor:pointer;border:1px solid #e2e8f0;background:#fff;color:#374151;transition:background .15s,border-color .15s; }
+    .hdr-btn:hover { background:#f8fafc;border-color:#cbd5e1; }
+    .hdr-btn.primary { background:#059669;border-color:#059669;color:#fff; }
+    .hdr-btn.primary:hover { background:#047857;border-color:#047857; }
+    .tbl-row:hover td { background:#f8fafc; }
+    .amount { transition:filter .2s; }
+    body.amounts-hidden .amount { filter:blur(8px); user-select:none; }
+    #toggle-amounts.is-hidden svg.eye-on  { display:none; }
+    #toggle-amounts:not(.is-hidden) svg.eye-off { display:none; }
+    #sync-dropdown { display:none;position:absolute;right:0;top:calc(100% + 4px);background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);min-width:200px;z-index:100; }
+    #sync-dropdown.open { display:block; }
+    .sync-item { display:flex;align-items:center;gap:8px;padding:10px 14px;font-size:.8125rem;color:#374151;cursor:pointer;border-radius:6px;transition:background .12s; }
+    .sync-item:hover { background:#f1f5f9; }
+    #progress-bar-inner { transition:width .3s; }
+    .spinner { display:none;width:18px;height:18px;border:2px solid #e2e8f0;border-top-color:#059669;border-radius:50%;animation:spin .7s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .spinner.active { display:block; }
+  </style>
+</head>
+<body class="min-h-screen">
+
+<!-- ─── NAVBAR ─────────────────────────────────────────── -->
+<header class="bg-white border-b border-slate-100 sticky top-0 z-50">
+  <div class="max-w-7xl mx-auto px-5">
+    <div class="flex items-center h-14 gap-4">
+      <!-- Brand -->
+      <a href="/" class="flex items-center gap-2 shrink-0">
+        <div class="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center">
+          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2"
+              d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+          </svg>
+        </div>
+        <span class="font-semibold text-slate-800 text-sm tracking-tight">Livin Tracker</span>
+      </a>
+      <div class="h-5 w-px bg-slate-200"></div>
+      <!-- Nav -->
+      <nav class="flex items-center h-full gap-1">
+        <a href="/" class="nav-link">Dashboard</a>
+        <a href="/pembayaran" class="nav-link">Pembayaran</a>
+        <a href="/rekening-koran" class="nav-link active">Rekening Koran</a>
+      </nav>
+      <div class="flex-1"></div>
+      <!-- Right Controls -->
+      <div id="spinner" class="spinner"></div>
+      <span id="last-update" class="text-xs text-slate-400 hidden"></span>
+
+      <!-- Eye toggle -->
+      <button id="toggle-amounts" class="hdr-btn" onclick="toggleAmounts()" title="Tampilkan/Sembunyikan nominal">
+        <svg class="eye-on w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+        </svg>
+        <svg class="eye-off w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
+        </svg>
+      </button>
+
+      <!-- Sync dropdown -->
+      <div class="relative">
+        <button class="hdr-btn primary" onclick="toggleSyncMenu()">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
+          Sync
+          <svg class="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </button>
+        <div id="sync-dropdown">
+          <div class="p-1">
+            <div class="sync-item" onclick="doSync('rekening_koran')">
+              <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+              Sync Rekening Koran
+            </div>
+            <div class="sync-item" onclick="doSync('harian')">
+              <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+              </svg>
+              Sync Harian
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ─── SYNC PROGRESS ──────────────────────────────────── -->
+<div id="sync-panel" class="hidden max-w-7xl mx-auto px-5 mt-4">
+  <div class="card p-4">
+    <div class="flex items-center justify-between mb-3">
+      <span class="text-sm font-semibold text-slate-700">Progress Sync</span>
+      <button onclick="closeSyncPanel()" class="text-slate-400 hover:text-slate-600">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    <div class="w-full bg-slate-100 rounded-full h-2 mb-3">
+      <div id="progress-bar-inner" class="bg-emerald-500 h-2 rounded-full" style="width:0%"></div>
+    </div>
+    <div id="sync-log" class="text-xs font-mono text-slate-600 space-y-1 max-h-40 overflow-y-auto"></div>
+  </div>
+</div>
+
+<!-- ─── FILTER BAR ─────────────────────────────────────── -->
+<div class="max-w-7xl mx-auto px-5 mt-6">
+  <div class="card px-4 py-3 flex flex-wrap items-center gap-3">
+    <select id="f-year" onchange="loadData()"
+      class="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+      <option value="">Semua Tahun</option>
+    </select>
+    <select id="f-month" onchange="loadData()"
+      class="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+      <option value="">Semua Bulan</option>
+      <option value="01">Januari</option><option value="02">Februari</option>
+      <option value="03">Maret</option><option value="04">April</option>
+      <option value="05">Mei</option><option value="06">Juni</option>
+      <option value="07">Juli</option><option value="08">Agustus</option>
+      <option value="09">September</option><option value="10">Oktober</option>
+      <option value="11">November</option><option value="12">Desember</option>
+    </select>
+    <select id="f-tipe" onchange="filterTable()"
+      class="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+      <option value="">Semua Tipe</option>
+      <option value="debit">Debit</option>
+      <option value="kredit">Kredit</option>
+    </select>
+    <input id="f-search" type="text" placeholder="Cari rincian..."
+      oninput="filterTable()"
+      class="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 min-w-48">
+    <button onclick="resetFilter()"
+      class="ml-auto text-sm text-slate-500 hover:text-slate-700 font-medium">
+      Reset Filter
+    </button>
+  </div>
+</div>
+
+<!-- ─── KPI CARDS ──────────────────────────────────────── -->
+<div class="max-w-7xl mx-auto px-5 mt-4 grid grid-cols-2 lg:grid-cols-4 gap-4">
+  <div class="card p-4">
+    <div class="kpi-label mb-1">Saldo Terkini</div>
+    <div class="kpi-value amount" id="kpi-saldo">—</div>
+    <div class="text-xs text-slate-400 mt-1" id="kpi-periode">—</div>
+  </div>
+  <div class="card p-4">
+    <div class="kpi-label mb-1">Total Debit</div>
+    <div class="kpi-value text-red-600 amount" id="kpi-debit">—</div>
+    <div class="text-xs text-slate-400 mt-1" id="kpi-debit-count">0 transaksi</div>
+  </div>
+  <div class="card p-4">
+    <div class="kpi-label mb-1">Total Kredit</div>
+    <div class="kpi-value text-emerald-600 amount" id="kpi-kredit">—</div>
+    <div class="text-xs text-slate-400 mt-1">pemasukan</div>
+  </div>
+  <div class="card p-4">
+    <div class="kpi-label mb-1">Total Transaksi</div>
+    <div class="kpi-value" id="kpi-total-tx">—</div>
+    <div class="text-xs text-slate-400 mt-1">semua mutasi</div>
+  </div>
+</div>
+
+<!-- ─── CHART ──────────────────────────────────────────── -->
+<div class="max-w-7xl mx-auto px-5 mt-4">
+  <div class="card p-5">
+    <div class="text-sm font-semibold text-slate-700 mb-4">Mutasi per Bulan</div>
+    <div style="height:240px">
+      <canvas id="chart-bulanan"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- ─── TABEL TRANSAKSI ────────────────────────────────── -->
+<div class="max-w-7xl mx-auto px-5 mt-4 mb-10">
+  <div class="card">
+    <div class="px-5 py-4 flex items-center justify-between border-b border-slate-100">
+      <span class="font-semibold text-slate-700">Transaksi Rekening Koran</span>
+      <span id="tbl-count" class="text-xs text-slate-400">—</span>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-left border-b border-slate-100">
+            <th class="px-5 py-3 font-semibold text-slate-500 text-xs uppercase">Tanggal</th>
+            <th class="px-4 py-3 font-semibold text-slate-500 text-xs uppercase">Rincian</th>
+            <th class="px-4 py-3 font-semibold text-slate-500 text-xs uppercase">Tipe</th>
+            <th class="px-4 py-3 font-semibold text-slate-500 text-xs uppercase text-right">Jumlah</th>
+            <th class="px-5 py-3 font-semibold text-slate-500 text-xs uppercase text-right">Saldo</th>
+          </tr>
+        </thead>
+        <tbody id="tbl-body"></tbody>
+      </table>
+    </div>
+    <!-- Pagination -->
+    <div id="pagination" class="flex items-center justify-between px-5 py-3 border-t border-slate-100">
+      <span id="page-info" class="text-xs text-slate-400">—</span>
+      <div class="flex gap-1" id="page-btns"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const fmt = n => n == null ? '—' : 'Rp ' + Math.abs(n).toLocaleString('id-ID');
+const fmtDate = s => s ? s.split('T')[0] : '—';
+const MONTHS = ['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agt','Sep','Okt','Nov','Des'];
+
+let allData = [];
+let filteredData = [];
+let curPage = 1;
+const PAGE_SIZE = 10;
+let chartInstance = null;
+let amountsHidden = false;
+
+function toggleAmounts() {
+  amountsHidden = !amountsHidden;
+  document.body.classList.toggle('amounts-hidden', amountsHidden);
+  document.getElementById('toggle-amounts').classList.toggle('is-hidden', amountsHidden);
+}
+
+function toggleSyncMenu() {
+  document.getElementById('sync-dropdown').classList.toggle('open');
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.relative')) {
+    document.getElementById('sync-dropdown').classList.remove('open');
+  }
+});
+
+async function loadData() {
+  const year  = document.getElementById('f-year').value;
+  const month = document.getElementById('f-month').value;
+  document.getElementById('spinner').classList.add('active');
+
+  try {
+    const params = new URLSearchParams();
+    if (year)  params.set('year', year);
+    if (month) params.set('month', month);
+    const res  = await fetch('/api/rekening-koran?' + params);
+    const json = await res.json();
+
+    // Populate year filter
+    const yearSel = document.getElementById('f-year');
+    const curYear = yearSel.value;
+    yearSel.innerHTML = '<option value="">Semua Tahun</option>';
+    (json.years || []).forEach(y => {
+      const opt = document.createElement('option');
+      opt.value = y; opt.textContent = y;
+      if (y === curYear) opt.selected = true;
+      yearSel.appendChild(opt);
+    });
+
+    // KPI
+    const k = json.kpi || {};
+    document.getElementById('kpi-saldo').textContent  = fmt(k.saldo_terkini);
+    document.getElementById('kpi-periode').textContent = k.periode_terkini ? 'Per ' + fmtDate(k.periode_terkini) : '—';
+    document.getElementById('kpi-debit').textContent   = fmt(k.total_debit);
+    document.getElementById('kpi-kredit').textContent  = fmt(k.total_kredit);
+    document.getElementById('kpi-total-tx').textContent = (k.total_transaksi || 0).toLocaleString('id-ID');
+    document.getElementById('kpi-debit-count').textContent = (k.total_transaksi || 0) + ' transaksi';
+
+    // Chart
+    buildChart(json.per_bulan || []);
+
+    // Table
+    allData = json.transaksi || [];
+    filterTable();
+
+    document.getElementById('last-update').textContent = 'Diperbarui ' + new Date().toLocaleTimeString('id-ID');
+    document.getElementById('last-update').classList.remove('hidden');
+  } catch(e) {
+    console.error(e);
+  } finally {
+    document.getElementById('spinner').classList.remove('active');
+  }
+}
+
+function buildChart(perBulan) {
+  const labels = perBulan.map(b => {
+    const [y, m] = b.bulan.split('-');
+    return MONTHS[parseInt(m)] + ' ' + y.slice(2);
+  });
+  const debitData  = perBulan.map(b => b.total_debit  || 0);
+  const kreditData = perBulan.map(b => b.total_kredit || 0);
+
+  if (chartInstance) chartInstance.destroy();
+  chartInstance = new Chart(document.getElementById('chart-bulanan'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Debit',  data: debitData,  backgroundColor: '#fca5a5', borderRadius: 4, borderSkipped: false },
+        { label: 'Kredit', data: kreditData, backgroundColor: '#6ee7b7', borderRadius: 4, borderSkipped: false },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } } },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+        y: {
+          ticks: {
+            font: { size: 11 },
+            callback: v => 'Rp ' + (v/1e6).toFixed(1) + 'jt',
+          },
+          grid: { color: '#f1f5f9' },
+        },
+      },
+    },
+  });
+}
+
+function filterTable() {
+  const tipe   = document.getElementById('f-tipe').value;
+  const search = document.getElementById('f-search').value.toLowerCase();
+  filteredData = allData.filter(r => {
+    if (tipe   && r.tipe !== tipe) return false;
+    if (search && !(r.rincian || '').toLowerCase().includes(search) &&
+                  !(r.no_referensi || '').toLowerCase().includes(search)) return false;
+    return true;
+  });
+  curPage = 1;
+  renderTable();
+}
+
+function renderTable() {
+  const total = filteredData.length;
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  curPage = Math.min(curPage, pages);
+  const slice = filteredData.slice((curPage-1)*PAGE_SIZE, curPage*PAGE_SIZE);
+
+  document.getElementById('tbl-count').textContent = total.toLocaleString('id-ID') + ' transaksi';
+
+  const tbody = document.getElementById('tbl-body');
+  if (!slice.length) {
+    tbody.innerHTML = `<tr><td colspan="5" class="px-5 py-10 text-center text-slate-400 text-sm">Tidak ada data</td></tr>`;
+    document.getElementById('page-info').textContent = '—';
+    document.getElementById('page-btns').innerHTML = '';
+    return;
+  }
+
+  tbody.innerHTML = slice.map(r => {
+    const isDebit = r.tipe === 'debit';
+    const badge = isDebit
+      ? `<span class="badge badge-debit">Debit</span>`
+      : `<span class="badge badge-kredit">Kredit</span>`;
+    const amtColor = isDebit ? 'text-red-600' : 'text-emerald-600';
+    const ref = r.no_referensi ? `<div class="text-xs text-slate-400 mt-0.5 truncate max-w-xs">${r.no_referensi.split('\n')[0]}</div>` : '';
+    return `<tr class="tbl-row border-b border-slate-50 last:border-0">
+      <td class="px-5 py-3 text-slate-600 whitespace-nowrap">${fmtDate(r.tanggal)}</td>
+      <td class="px-4 py-3">
+        <div class="font-medium text-slate-800">${r.rincian || '—'}</div>
+        ${ref}
+      </td>
+      <td class="px-4 py-3">${badge}</td>
+      <td class="px-4 py-3 text-right font-medium ${amtColor} amount">${fmt(r.jumlah)}</td>
+      <td class="px-5 py-3 text-right text-slate-600 amount">${fmt(r.saldo)}</td>
+    </tr>`;
+  }).join('');
+
+  // Pagination
+  document.getElementById('page-info').textContent =
+    `${((curPage-1)*PAGE_SIZE+1)}–${Math.min(curPage*PAGE_SIZE, total)} dari ${total}`;
+
+  const btns = document.getElementById('page-btns');
+  btns.innerHTML = '';
+  const base = 'inline-flex items-center justify-center w-8 h-8 rounded-lg text-xs font-medium border ';
+  const active = base + 'bg-emerald-600 text-white border-emerald-600';
+  const inactive = base + 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 cursor-pointer';
+
+  // Prev
+  const prev = document.createElement('button');
+  prev.className = inactive; prev.textContent = '‹';
+  prev.disabled = curPage === 1;
+  if (curPage === 1) prev.className += ' opacity-40 cursor-not-allowed';
+  prev.onclick = () => goPage(curPage - 1);
+  btns.appendChild(prev);
+
+  // Pages
+  const range = pageRange(curPage, pages);
+  range.forEach(p => {
+    if (p === '…') {
+      const span = document.createElement('span');
+      span.className = 'inline-flex items-center px-1 text-slate-400'; span.textContent = '…';
+      btns.appendChild(span);
+    } else {
+      const btn = document.createElement('button');
+      btn.className = p === curPage ? active : inactive;
+      btn.textContent = p;
+      btn.onclick = () => goPage(p);
+      btns.appendChild(btn);
+    }
+  });
+
+  // Next
+  const next = document.createElement('button');
+  next.className = inactive; next.textContent = '›';
+  next.disabled = curPage === pages;
+  if (curPage === pages) next.className += ' opacity-40 cursor-not-allowed';
+  next.onclick = () => goPage(curPage + 1);
+  btns.appendChild(next);
+}
+
+function pageRange(cur, total) {
+  if (total <= 7) return Array.from({length:total},(_,i)=>i+1);
+  if (cur <= 4) return [1,2,3,4,5,'…',total];
+  if (cur >= total-3) return [1,'…',total-4,total-3,total-2,total-1,total];
+  return [1,'…',cur-1,cur,cur+1,'…',total];
+}
+
+function goPage(p) {
+  curPage = p;
+  renderTable();
+  window.scrollTo({top: document.getElementById('tbl-body').getBoundingClientRect().top + window.scrollY - 80, behavior:'smooth'});
+}
+
+function resetFilter() {
+  document.getElementById('f-year').value = '';
+  document.getElementById('f-month').value = '';
+  document.getElementById('f-tipe').value = '';
+  document.getElementById('f-search').value = '';
+  loadData();
+}
+
+// ─── SYNC ────────────────────────────────────────────────
+let syncSource = null;
+function doSync(type) {
+  document.getElementById('sync-dropdown').classList.remove('open');
+  if (syncSource) syncSource.close();
+
+  const panel = document.getElementById('sync-panel');
+  const log   = document.getElementById('sync-log');
+  const bar   = document.getElementById('progress-bar-inner');
+  panel.classList.remove('hidden');
+  log.innerHTML = '';
+  bar.style.width = '0%';
+  document.getElementById('spinner').classList.add('active');
+
+  syncSource = new EventSource(`/api/sync/${type}`);
+  syncSource.onmessage = e => {
+    const d = JSON.parse(e.data);
+    if (d.type === 'log') {
+      const cls = d.cls === 'ok' ? 'text-emerald-600' : d.cls === 'warn' ? 'text-amber-600' : '';
+      log.innerHTML += `<div class="${cls}">${d.text}</div>`;
+      log.scrollTop = log.scrollHeight;
+    } else if (d.type === 'progress') {
+      bar.style.width = d.pct + '%';
+      log.innerHTML += `<div class="text-slate-500">${d.text}</div>`;
+      log.scrollTop = log.scrollHeight;
+    } else if (d.type === 'done') {
+      bar.style.width = '100%';
+      document.getElementById('spinner').classList.remove('active');
+      syncSource.close();
+      loadData();
+    } else if (d.type === 'error') {
+      log.innerHTML += `<div class="text-red-600">Error: ${d.message}</div>`;
+      document.getElementById('spinner').classList.remove('active');
+      syncSource.close();
+    }
+  };
+  syncSource.onerror = () => {
+    document.getElementById('spinner').classList.remove('active');
+    syncSource.close();
+  };
+}
+
+function closeSyncPanel() {
+  document.getElementById('sync-panel').classList.add('hidden');
+  if (syncSource) syncSource.close();
+}
+
+loadData();
+</script>
+</body>
+</html>

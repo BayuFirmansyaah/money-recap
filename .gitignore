@@ -1,0 +1,50 @@
+# ── Credentials & Secrets ────────────────────────────────
+credentials/
+.env
+*.pickle
+*.json.bak
+
+# ── Database & Data ───────────────────────────────────────
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# ── Logs ─────────────────────────────────────────────────
+logs/
+
+# ── Build Output ──────────────────────────────────────────
+dist/
+build/
+*.spec.bak
+
+# ── Python ───────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+.installed.cfg
+
+# ── Virtual Environment ───────────────────────────────────
+venv/
+.venv/
+env/
+ENV/
+
+# ── OS & Editor ───────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+*.iml
+
+# ── Internal / Dev-only ───────────────────────────────────
+claude.md
+daftar_email_bank_indonesia.md
+{src,data,credentials}

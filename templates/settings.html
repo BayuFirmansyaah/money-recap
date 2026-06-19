@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings — Livin Tracker</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+           background: #f5f6fa; color: #2d3436; min-height: 100vh; }
+
+    .nav { background: #2d3436; padding: 14px 24px; display: flex;
+           align-items: center; gap: 20px; }
+    .nav a { color: #b2bec3; text-decoration: none; font-size: 14px; }
+    .nav a:hover { color: #fff; }
+    .nav .brand { color: #fff; font-weight: 700; font-size: 16px; margin-right: auto; }
+
+    .container { max-width: 820px; margin: 32px auto; padding: 0 20px; }
+    h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+    .subtitle { color: #636e72; font-size: 14px; margin-bottom: 28px; }
+
+    .card { background: #fff; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.08);
+            margin-bottom: 20px; overflow: hidden; }
+    .card-header { padding: 16px 20px; border-bottom: 1px solid #f0f0f0;
+                   display: flex; align-items: center; gap: 10px; }
+    .card-header h2 { font-size: 15px; font-weight: 600; }
+    .card-header .icon { font-size: 18px; }
+    .card-body { padding: 20px; }
+
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 99px;
+             font-size: 12px; font-weight: 600; }
+    .badge-ok  { background: #d4edda; color: #155724; }
+    .badge-err { background: #f8d7da; color: #721c24; }
+    .badge-warn{ background: #fff3cd; color: #856404; }
+
+    label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;
+            color: #636e72; text-transform: uppercase; letter-spacing: .5px; }
+    input[type=text], input[type=password], textarea, select {
+      width: 100%; padding: 9px 12px; border: 1px solid #dfe6e9; border-radius: 6px;
+      font-size: 14px; background: #fafafa; color: #2d3436; outline: none; }
+    input:focus, textarea:focus, select:focus { border-color: #0984e3; background: #fff; }
+    textarea { resize: vertical; min-height: 100px; font-family: monospace; font-size: 13px; }
+
+    .form-row { margin-bottom: 16px; }
+    .form-hint { font-size: 12px; color: #b2bec3; margin-top: 4px; }
+
+    .btn { padding: 9px 18px; border: none; border-radius: 6px; font-size: 14px;
+           font-weight: 600; cursor: pointer; transition: opacity .15s; }
+    .btn:hover { opacity: .85; }
+    .btn-primary { background: #0984e3; color: #fff; }
+    .btn-danger  { background: #d63031; color: #fff; }
+    .btn-sm { padding: 5px 12px; font-size: 13px; }
+
+    .status-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
+                  padding: 10px 12px; background: #f8f9fa; border-radius: 6px; }
+    .status-row .label { font-size: 13px; color: #636e72; min-width: 140px; }
+    .status-row .value { font-size: 13px; font-weight: 600; flex: 1; }
+
+    .banks-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .bank-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+                 border: 1px solid #dfe6e9; border-radius: 8px; cursor: pointer;
+                 transition: all .15s; }
+    .bank-item:hover { border-color: #0984e3; background: #f0f7ff; }
+    .bank-item.active { border-color: #0984e3; background: #e8f4fd; }
+    .bank-item input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; }
+    .bank-item .name { font-size: 14px; font-weight: 600; }
+    .bank-item .senders { font-size: 11px; color: #b2bec3; margin-top: 2px; }
+
+    .msg { padding: 10px 14px; border-radius: 6px; font-size: 13px; font-weight: 600;
+           display: none; margin-top: 12px; }
+    .msg.ok  { background: #d4edda; color: #155724; display: block; }
+    .msg.err { background: #f8d7da; color: #721c24; display: block; }
+
+    @media (max-width: 600px) {
+      .banks-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<nav class="nav">
+  <span class="brand">💰 Livin Tracker</span>
+  <a href="/">Dashboard</a>
+  <a href="/pembayaran">Pembayaran</a>
+  <a href="/rekening-koran">Rekening Koran</a>
+  <a href="/settings">⚙️ Settings</a>
+</nav>
+
+<div class="container">
+  <h1>⚙️ Settings</h1>
+  <p class="subtitle">Konfigurasi Google OAuth, AI, dan bank yang diaktifkan.</p>
+
+  <!-- ── Google OAuth ─────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-header">
+      <span class="icon">🔑</span>
+      <h2>Google OAuth (Gmail API)</h2>
+      <span id="google-badge" class="badge badge-warn" style="margin-left:auto">Loading...</span>
+    </div>
+    <div class="card-body">
+      <div class="status-row">
+        <span class="label">Credentials (client)</span>
+        <span class="value" id="google-cred-status">—</span>
+      </div>
+      <div class="status-row">
+        <span class="label">OAuth Token</span>
+        <span class="value" id="google-token-status">—</span>
+      </div>
+      <div class="status-row">
+        <span class="label">Client ID</span>
+        <span class="value" id="google-client-id" style="font-family:monospace;font-size:12px;word-break:break-all">—</span>
+      </div>
+
+      <hr style="margin:16px 0; border:none; border-top:1px solid #f0f0f0">
+
+      <div class="form-row">
+        <label>Upload credentials.json</label>
+        <textarea id="creds-json" placeholder='Paste isi file credentials.json di sini...'></textarea>
+        <div class="form-hint">Download dari Google Cloud Console → OAuth 2.0 Client IDs → Download JSON.</div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-primary btn-sm" onclick="saveGoogleCreds()">💾 Simpan Credentials</button>
+        <button class="btn btn-danger btn-sm" onclick="revokeToken()">🔒 Revoke Token (Force Re-Auth)</button>
+      </div>
+      <div id="google-msg" class="msg"></div>
+    </div>
+  </div>
+
+  <!-- ── AI Config ─────────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-header">
+      <span class="icon">🤖</span>
+      <h2>Konfigurasi AI (LLM)</h2>
+      <span id="ai-badge" class="badge badge-warn" style="margin-left:auto">Loading...</span>
+    </div>
+    <div class="card-body">
+      <div class="status-row">
+        <span class="label">API Key</span>
+        <span class="value" id="ai-key-status">—</span>
+      </div>
+
+      <hr style="margin:16px 0; border:none; border-top:1px solid #f0f0f0">
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="form-row">
+          <label>Provider</label>
+          <select id="ai-provider">
+            <option value="openai">OpenAI</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>Model</label>
+          <select id="ai-model">
+            <option value="gpt-4o-mini">gpt-4o-mini (hemat, recommended)</option>
+            <option value="gpt-4o">gpt-4o (lebih akurat)</option>
+            <option value="gpt-4-turbo">gpt-4-turbo</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <label>API Key (biarkan kosong untuk mempertahankan yang tersimpan)</label>
+        <input type="password" id="ai-key" placeholder="sk-... (biarkan kosong jika tidak ingin mengubah)">
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="saveAiConfig()">💾 Simpan AI Config</button>
+      <div id="ai-msg" class="msg"></div>
+    </div>
+  </div>
+
+  <!-- ── Bank Settings ──────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-header">
+      <span class="icon">🏦</span>
+      <h2>Bank yang Diaktifkan</h2>
+    </div>
+    <div class="card-body">
+      <p style="font-size:13px;color:#636e72;margin-bottom:16px">
+        Pilih bank yang email notifikasinya akan disync. Setiap bank menggunakan
+        query Gmail yang sudah dikonfigurasi.
+      </p>
+      <div class="banks-grid" id="banks-grid">
+        <div style="color:#b2bec3;font-size:13px">Loading...</div>
+      </div>
+      <br>
+      <button class="btn btn-primary btn-sm" onclick="saveBanks()">💾 Simpan Pilihan Bank</button>
+      <div id="banks-msg" class="msg"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  function showMsg(id, text, isOk) {
+    const el = document.getElementById(id);
+    el.textContent = text;
+    el.className = 'msg ' + (isOk ? 'ok' : 'err');
+    setTimeout(() => { el.className = 'msg'; }, 4000);
+  }
+
+  // ── Google ────────────────────────────────────────────────────
+  async function loadGoogleStatus() {
+    const r = await fetch('/api/settings/google');
+    const d = await r.json();
+    const badge = document.getElementById('google-badge');
+
+    document.getElementById('google-cred-status').textContent =
+      d.has_credentials ? '✅ Tersimpan' : '❌ Belum ada';
+    document.getElementById('google-token-status').textContent =
+      d.has_token ? '✅ Terautentikasi' : '⚠️ Belum login';
+    document.getElementById('google-client-id').textContent =
+      d.client_id || '—';
+
+    if (d.has_credentials && d.has_token) {
+      badge.textContent = 'Terhubung'; badge.className = 'badge badge-ok';
+    } else if (d.has_credentials) {
+      badge.textContent = 'Perlu Auth'; badge.className = 'badge badge-warn';
+    } else {
+      badge.textContent = 'Belum Setup'; badge.className = 'badge badge-err';
+    }
+  }
+
+  async function saveGoogleCreds() {
+    const raw = document.getElementById('creds-json').value.trim();
+    if (!raw) return showMsg('google-msg', 'Paste credentials.json terlebih dahulu.', false);
+    try { JSON.parse(raw); } catch { return showMsg('google-msg', 'JSON tidak valid.', false); }
+
+    const r = await fetch('/api/settings/google', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({credentials_json: raw}),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      showMsg('google-msg', '✅ Credentials tersimpan. Token di-reset, jalankan Sync untuk re-auth.', true);
+      loadGoogleStatus();
+    } else {
+      showMsg('google-msg', d.error || 'Gagal menyimpan.', false);
+    }
+  }
+
+  async function revokeToken() {
+    if (!confirm('Hapus OAuth token? Anda perlu login ulang saat sync berikutnya.')) return;
+    await fetch('/api/settings/google/revoke', {method: 'POST'});
+    showMsg('google-msg', '🔒 Token dihapus. Login ulang diperlukan.', true);
+    loadGoogleStatus();
+  }
+
+  // ── AI ────────────────────────────────────────────────────────
+  async function loadAiStatus() {
+    const r = await fetch('/api/settings/ai');
+    const d = await r.json();
+    const badge = document.getElementById('ai-badge');
+
+    document.getElementById('ai-key-status').textContent =
+      d.has_api_key ? `✅ Tersimpan (${d.masked_key})` : '❌ Belum ada';
+
+    document.getElementById('ai-provider').value = d.provider || 'openai';
+    document.getElementById('ai-model').value    = d.model    || 'gpt-4o-mini';
+
+    badge.textContent = d.has_api_key ? 'Siap' : 'Belum Setup';
+    badge.className   = 'badge ' + (d.has_api_key ? 'badge-ok' : 'badge-err');
+  }
+
+  async function saveAiConfig() {
+    const r = await fetch('/api/settings/ai', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        provider: document.getElementById('ai-provider').value,
+        model:    document.getElementById('ai-model').value,
+        api_key:  document.getElementById('ai-key').value.trim(),
+      }),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      showMsg('ai-msg', '✅ AI config tersimpan.', true);
+      document.getElementById('ai-key').value = '';
+      loadAiStatus();
+    } else {
+      showMsg('ai-msg', d.error || 'Gagal.', false);
+    }
+  }
+
+  // ── Banks ─────────────────────────────────────────────────────
+  async function loadBanks() {
+    const r = await fetch('/api/settings/banks');
+    const d = await r.json();
+    const grid = document.getElementById('banks-grid');
+    grid.innerHTML = '';
+
+    d.banks.forEach(bank => {
+      const item = document.createElement('label');
+      item.className = 'bank-item' + (bank.enabled ? ' active' : '');
+      item.innerHTML = `
+        <input type="checkbox" value="${bank.id}" ${bank.enabled ? 'checked' : ''}
+               onchange="this.closest('.bank-item').classList.toggle('active', this.checked)">
+        <div>
+          <div class="name">${bank.name}</div>
+          <div class="senders">${bank.senders.join(', ')}</div>
+        </div>`;
+      grid.appendChild(item);
+    });
+  }
+
+  async function saveBanks() {
+    const checked = [...document.querySelectorAll('#banks-grid input:checked')].map(e => e.value);
+    if (checked.length === 0) return showMsg('banks-msg', 'Pilih minimal satu bank.', false);
+
+    const r = await fetch('/api/settings/banks', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({enabled: checked}),
+    });
+    const d = await r.json();
+    showMsg('banks-msg', d.ok ? `✅ ${checked.length} bank disimpan.` : (d.error || 'Gagal.'), d.ok);
+  }
+
+  // ── Init ──────────────────────────────────────────────────────
+  loadGoogleStatus();
+  loadAiStatus();
+  loadBanks();
+</script>
+</body>
+</html>

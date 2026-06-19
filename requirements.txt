@@ -1,0 +1,11 @@
+google-api-python-client>=2.100.0
+google-auth-httplib2>=0.1.1
+google-auth-oauthlib>=1.1.0
+openai>=1.0.0
+python-dotenv>=1.0.0
+flask>=3.0.0
+pikepdf>=8.0.0
+pdfplumber>=0.10.0
+
+# Build .exe (hanya diperlukan saat build, bukan saat runtime)
+pyinstaller>=6.0.0
