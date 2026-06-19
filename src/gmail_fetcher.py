@@ -62,53 +62,49 @@ def get_gmail_service():
 
 # ── Generic Bank Email Fetcher ────────────────────────────────────────────────
 
+def _build_query(bank: BankConfig, extra_query: str = '') -> str:
+    query = bank.gmail_query if bank.gmail_query else \
+            '(' + ' OR '.join(f'from:{s}' for s in bank.senders) + ')'
+    if extra_query:
+        query += f' {extra_query}'
+    return query
+
+
+def _fetch_message_ids(service, query: str, max_results: int) -> List[dict]:
+    all_ids: List[dict] = []
+    page_token: Optional[str] = None
+    while True:
+        kwargs: dict = {'userId': 'me', 'q': query, 'maxResults': 500}
+        if page_token:
+            kwargs['pageToken'] = page_token
+        result = service.users().messages().list(**kwargs).execute()
+        messages = result.get('messages', [])
+        if not messages:
+            break
+        all_ids.extend(messages)
+        page_token = result.get('nextPageToken')
+        if not page_token or len(all_ids) >= max_results:
+            break
+    return all_ids
+
+
 def fetch_bank_emails(
     service,
     bank: BankConfig,
     max_results: int = 99999,
     extra_query: str = '',
 ) -> List[dict]:
-    """
-    Ambil email notifikasi untuk satu bank.
-    Gunakan bank.gmail_query jika diset, fallback ke sender-based query.
-    Returns list of dict: id, subject, date_str, timestamp, body
-    """
-    if bank.gmail_query:
-        query = bank.gmail_query
-    else:
-        parts = ' OR '.join(f'from:{s}' for s in bank.senders)
-        query = f'({parts})'
-
-    if extra_query:
-        query += f' {extra_query}'
-
+    """Ambil email notifikasi untuk satu bank. Returns list of dict."""
+    query = _build_query(bank, extra_query)
     print(f"  [{bank.name}] Query: {query[:80]}...")
 
-    all_ids: List[dict] = []
-    page_token: Optional[str] = None
-
-    while True:
-        kwargs: dict = {'userId': 'me', 'q': query, 'maxResults': 500}
-        if page_token:
-            kwargs['pageToken'] = page_token
-
-        result = service.users().messages().list(**kwargs).execute()
-        messages = result.get('messages', [])
-        if not messages:
-            break
-
-        all_ids.extend(messages)
-        page_token = result.get('nextPageToken')
-        if not page_token or len(all_ids) >= max_results:
-            break
-
+    all_ids = _fetch_message_ids(service, query, max_results)
     total = len(all_ids)
     if total == 0:
         print(f"  [{bank.name}] Tidak ada email ditemukan.")
         return []
 
     print(f"  [{bank.name}] {total} email ditemukan, mengambil detail...")
-
     emails: List[dict] = []
     for i, msg in enumerate(all_ids, 1):
         print(f"  [{bank.name}] [{i:>5}/{total}] Mengambil...", end='\r')
@@ -117,10 +113,46 @@ def fetch_bank_emails(
             emails.append(email_data)
 
     print(f"  [{bank.name}] [{total}/{total}] Selesai.                              ")
+    emails.sort(key=lambda x: x['timestamp'])
+    print(f"  [{bank.name}] {len(emails)} email siap diparse.")
+    return emails
+
+
+def fetch_bank_emails_stream(
+    service,
+    bank: BankConfig,
+    max_results: int = 99999,
+    extra_query: str = '',
+):
+    """
+    Generator version — yields event tuples sehingga caller bisa relay ke SSE:
+      ('log',            str)          pesan teks biasa
+      ('fetch_progress', dict)         {bank, current, total}
+      ('result',         List[dict])   hasil akhir email
+    """
+    query = _build_query(bank, extra_query)
+    yield ('log', f"[{bank.name}] Mencari email...")
+
+    all_ids = _fetch_message_ids(service, query, max_results)
+    total = len(all_ids)
+
+    if total == 0:
+        yield ('log', f"[{bank.name}] Tidak ada email ditemukan.")
+        yield ('result', [])
+        return
+
+    yield ('log', f"[{bank.name}] {total} email ditemukan, mengambil detail...")
+
+    emails: List[dict] = []
+    for i, msg in enumerate(all_ids, 1):
+        yield ('fetch_progress', {'bank': bank.name, 'current': i, 'total': total})
+        email_data = get_email_detail(service, msg['id'])
+        if email_data:
+            emails.append(email_data)
 
     emails.sort(key=lambda x: x['timestamp'])
-    print(f"  [{bank.name}] ✓ {len(emails)} email siap diparse.")
-    return emails
+    yield ('log', f"[{bank.name}] {len(emails)} email siap diparse.")
+    yield ('result', emails)
 
 
 def fetch_all_banks_emails(
@@ -128,26 +160,48 @@ def fetch_all_banks_emails(
     bank_ids: List[str],
     extra_query: str = '',
 ) -> List[dict]:
-    """
-    Fetch email dari semua bank dalam bank_ids.
-    Returns list of dict dengan tambahan field 'bank_id'.
-    """
+    """Fetch email dari semua bank. Returns combined sorted list."""
     from src.banks import get_bank
-
     all_emails: List[dict] = []
     for bank_id in bank_ids:
         bank = get_bank(bank_id)
         if not bank:
-            print(f"  ⚠️  Bank '{bank_id}' tidak dikenal, dilewati.")
+            print(f"  Bank '{bank_id}' tidak dikenal, dilewati.")
             continue
         emails = fetch_bank_emails(service, bank, extra_query=extra_query)
         for e in emails:
             e['bank_id'] = bank_id
         all_emails.extend(emails)
-
-    # Urutkan global berdasarkan timestamp
     all_emails.sort(key=lambda x: x['timestamp'])
     return all_emails
+
+
+def fetch_all_banks_emails_stream(
+    service,
+    bank_ids: List[str],
+    extra_query: str = '',
+):
+    """
+    Streaming version untuk SSE — yields sama seperti fetch_bank_emails_stream.
+    Final 'result' berisi combined sorted list dari semua bank.
+    """
+    from src.banks import get_bank
+    all_emails: List[dict] = []
+    for bank_id in bank_ids:
+        bank = get_bank(bank_id)
+        if not bank:
+            yield ('log', f"Bank '{bank_id}' tidak dikenal, dilewati.")
+            continue
+        for event_type, data in fetch_bank_emails_stream(service, bank, extra_query=extra_query):
+            if event_type == 'result':
+                for e in data:
+                    e['bank_id'] = bank_id
+                all_emails.extend(data)
+            else:
+                yield (event_type, data)
+
+    all_emails.sort(key=lambda x: x['timestamp'])
+    yield ('result', all_emails)
 
 
 # ── Mandiri-specific Fetchers (tetap untuk payroll & rekening koran) ──────────

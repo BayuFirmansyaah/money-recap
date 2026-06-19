@@ -328,7 +328,7 @@ def api_sync(sync_type):
                 pass
 
             from src.gmail_fetcher import (
-                get_gmail_service, fetch_all_banks_emails,
+                get_gmail_service, fetch_all_banks_emails_stream,
                 fetch_payroll_emails, fetch_rk_emails,
             )
             from src.database import (
@@ -361,9 +361,22 @@ def api_sync(sync_type):
                            'text': f'Mencari email dari {len(enabled_banks)} bank {label}...'})
 
                 extra  = today_q if sync_type == 'harian' else ''
-                emails = fetch_all_banks_emails(service, enabled_banks, extra_query=extra)
-                n      = len(emails)
-                yield sse({'type': 'log', 'text': f'Ditemukan {n} email pengeluaran'})
+
+                # Streaming fetch — relay log & progress ke browser secara real-time
+                emails = []
+                for event_type, data in fetch_all_banks_emails_stream(service, enabled_banks, extra_query=extra):
+                    if event_type == 'log':
+                        yield sse({'type': 'log', 'text': data})
+                    elif event_type == 'fetch_progress':
+                        yield sse({'type': 'fetch_progress',
+                                   'bank': data['bank'],
+                                   'current': data['current'],
+                                   'total': data['total']})
+                    elif event_type == 'result':
+                        emails = data
+
+                n = len(emails)
+                yield sse({'type': 'log', 'text': f'Total {n} email dari semua bank, mulai ekstraksi...'})
 
                 baru = skip_db = skip_llm = 0
                 for i, email in enumerate(emails, 1):
@@ -381,7 +394,7 @@ def api_sync(sync_type):
                                'text': f'Baru: {baru} · Skip DB: {skip_db} · Skip LLM: {skip_llm}'})
 
                 yield sse({'type': 'log', 'cls': 'ok',
-                           'text': f'Pengeluaran selesai — {baru} baru, {skip_db+skip_llm} diskip ✓'})
+                           'text': f'Pengeluaran selesai — {baru} baru, {skip_db+skip_llm} diskip'})
 
             # ── PEMASUKAN ────────────────────────────────────────
             if sync_type in ('pemasukan', 'harian'):

@@ -185,6 +185,13 @@
             </svg>
             Rekening Koran
           </a>
+          <a href="/settings" class="nav-link">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
+            </svg>
+            Settings
+          </a>
         </nav>
 
         <div class="flex-1 min-w-0"></div>
@@ -232,7 +239,7 @@
               </div>
               <div>
                 <div class="text-sm font-semibold text-slate-800">Sync Pengeluaran</div>
-                <div class="text-xs text-slate-400">Semua transaksi Livin by Mandiri</div>
+                <div class="text-xs text-slate-400">Semua transaksi dari bank aktif</div>
               </div>
             </button>
 
@@ -245,7 +252,7 @@
               </div>
               <div>
                 <div class="text-sm font-semibold text-slate-800">Sync Pemasukan</div>
-                <div class="text-xs text-slate-400">Semua gaji masuk MCM</div>
+                <div class="text-xs text-slate-400">Gaji masuk Mandiri (MCM)</div>
               </div>
             </button>
 
@@ -278,7 +285,7 @@
               </div>
               <div>
                 <div class="text-sm font-semibold text-slate-800">Sync Rekening Koran</div>
-                <div class="text-xs text-slate-400">ConsolidatedStatement PDF</div>
+                <div class="text-xs text-slate-400">E-statement PDF Mandiri</div>
               </div>
             </button>
 
@@ -1444,15 +1451,30 @@ function doSync(type) {
     const log  = document.getElementById('sync-log');
 
     if (msg.type === 'log') {
+      // Jika ada ticker fetch, sisipkan log baru di atasnya agar ticker tetap di bawah
+      const ticker = log.querySelector('.fetch-ticker');
       const row = document.createElement('div');
-      row.className = msg.cls === 'ok'
-        ? 'text-green-700 font-semibold'
-        : 'text-slate-500';
+      row.className = msg.cls === 'ok' ? 'text-green-700 font-semibold' : 'text-slate-500';
       row.textContent = msg.text;
-      log.appendChild(row);
+      ticker ? log.insertBefore(row, ticker) : log.appendChild(row);
+      log.scrollTop = log.scrollHeight;
+
+    } else if (msg.type === 'fetch_progress') {
+      // Update ticker baris terakhir di log (in-place, tidak menambah baris baru)
+      let ticker = log.querySelector('.fetch-ticker');
+      if (!ticker) {
+        ticker = document.createElement('div');
+        ticker.className = 'fetch-ticker text-slate-400';
+        log.appendChild(ticker);
+      }
+      const pct = Math.round(msg.current / msg.total * 100);
+      ticker.textContent = `[${msg.bank}] ${msg.current}/${msg.total} (${pct}%)`;
       log.scrollTop = log.scrollHeight;
 
     } else if (msg.type === 'progress') {
+      // Hapus ticker fetch sebelum progress bar LLM muncul
+      const ticker = log.querySelector('.fetch-ticker');
+      if (ticker) ticker.remove();
       document.getElementById('sync-prog-wrap').classList.remove('hidden');
       document.getElementById('sync-prog-fill').style.width = msg.pct + '%';
       document.getElementById('sync-prog-pct').textContent  = msg.pct + '%';
